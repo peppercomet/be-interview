@@ -50,3 +50,14 @@ def get_organisation_locations(organisation_id: int, session: Session = Depends(
         location = session.exec(select(Location).where(Location.id == location_id)).one()
         result.append({"location_name": location.location_name, "location_longitude": location.longitude, "location_latitude": location.latitude })
     return result
+
+@router.get("/create/location")
+async def create_location_get(session: Session = Depends(get_db)):
+    """
+    endpoint from the first task to create locations
+    """
+    new_location = Location(location_name="Default Name", longitude=0.0, latitude=0.0, organisation_id=1)
+    session.add(new_location)
+    session.commit()
+    session.refresh(new_location)
+    return {"message": "Location created", "location": new_location}
