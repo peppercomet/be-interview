@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from sqlmodel import select, Session
+from pydantic import BaseModel
 
 from app.db import get_db
 from app.models import Location, Organisation, CreateOrganisation
@@ -41,15 +42,33 @@ def get_organisation(organisation_id: int, session: Session = Depends(get_db)) -
 def create_location():
     raise NotImplementedError
 
+class LocationResponse(BaseModel):
+    location_name: str
+    location_longitude: float
+    location_latitude: float
 
 @router.get("/{organisation_id}/locations")
 def get_organisation_locations(organisation_id: int, session: Session = Depends(get_db)):
-    location_ids = session.exec(select(Location.id).where(Location.organisation_id==organisation_id)).all()
-    result = []
-    for location_id in location_ids:
-        location = session.exec(select(Location).where(Location.id == location_id)).one()
-        result.append({"location_name": location.location_name, "location_longitude": location.longitude, "location_latitude": location.latitude })
-    return result
+    """
+    get all locations for a given organisation id.
+    """
+    organisation = session.get(Organisation, organisation_id)
+    if organisation is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="organisation not found")
+
+    locations = session.exec(select(Location).where(Location.organisation_id == organisation_id)).all()
+    
+    if not locations:
+        return []
+
+    return [
+        LocationResponse(
+            location_name=location.location_name,
+            location_longitude=location.longitude,
+            location_latitude=location.latitude,
+        )
+        for location in locations
+    ]
 
 @router.get("/create/location")
 async def create_location_get(session: Session = Depends(get_db)):
