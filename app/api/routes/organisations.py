@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Query
 from sqlmodel import select, Session
 from pydantic import BaseModel
+from typing import Optional, Tuple
+
 
 from app.db import get_db
 from app.models import Location, Organisation, CreateOrganisation
@@ -48,15 +50,30 @@ class LocationResponse(BaseModel):
     location_latitude: float
 
 @router.get("/{organisation_id}/locations")
-def get_organisation_locations(organisation_id: int, session: Session = Depends(get_db)):
+def get_organisation_locations(
+    organisation_id: int,
+    bounding_box: Optional[Tuple[float, float, float, float]] = Query(None),
+    session: Session = Depends(get_db)
+):
     """
-    get all locations for a given organisation id.
+    get all locations for a given organisation id, optionally filtered by a bounding box.
     """
     organisation = session.get(Organisation, organisation_id)
     if organisation is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="organisation not found")
 
-    locations = session.exec(select(Location).where(Location.organisation_id == organisation_id)).all()
+    query = select(Location).where(Location.organisation_id == organisation_id)
+
+    if bounding_box:
+        min_longitude, min_latitude, max_longitude, max_latitude = bounding_box
+        query = query.where(
+            Location.longitude >= min_longitude,
+            Location.longitude <= max_longitude,
+            Location.latitude >= min_latitude,
+            Location.latitude <= max_latitude,
+        )
+
+    locations = session.exec(query).all()
     
     if not locations:
         return []
